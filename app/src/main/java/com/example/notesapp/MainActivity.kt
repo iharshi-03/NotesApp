@@ -15,17 +15,30 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Manual ViewModel creation since we don't have Hilt/Dependency Injection yet
+        val database = NoteDatabase.getDatabase(this)
+        val repository = NoteRepository(database.noteDao())
+        val viewModelFactory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return NotesViewModel(repository) as T
+            }
+        }
+
         setContent {
             MaterialTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    NotesApp()
+                    val viewModel: NotesViewModel = viewModel(factory = viewModelFactory)
+                    NotesApp(viewModel)
                 }
             }
         }
@@ -34,8 +47,8 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotesApp(viewModel: NotesViewModel = viewModel()) {
-    val notes by viewModel.notes.collectAsState()
+fun NotesApp(viewModel: NotesViewModel) {
+    val notes by viewModel.notes.collectAsState(initial = emptyList())
     var showDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -56,7 +69,7 @@ fun NotesApp(viewModel: NotesViewModel = viewModel()) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(note.title, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(note.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(note.content, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -64,7 +77,7 @@ fun NotesApp(viewModel: NotesViewModel = viewModel()) {
 
         if (showDialog) {
             var title by remember { mutableStateOf("") }
-            var body by remember { mutableStateOf("") }
+            var content by remember { mutableStateOf("") }
 
             AlertDialog(
                 onDismissRequest = { showDialog = false },
@@ -78,16 +91,16 @@ fun NotesApp(viewModel: NotesViewModel = viewModel()) {
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
-                            value = body,
-                            onValueChange = { body = it },
-                            label = { Text("Body") }
+                            value = content,
+                            onValueChange = { content = it },
+                            label = { Text("Content") }
                         )
                     }
                 },
                 confirmButton = {
                     Button(onClick = {
-                        if (title.isNotBlank() && body.isNotBlank()) {
-                            viewModel.addNote(title, body)
+                        if (title.isNotBlank() && content.isNotBlank()) {
+                            viewModel.addNote(title, content)
                             showDialog = false
                         }
                     }) {
